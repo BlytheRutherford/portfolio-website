@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import GUI from 'lil-gui';
 const scene = new THREE.Scene();
 // Glitchy background
 // Render target for post-processing
@@ -77,7 +78,7 @@ const postScene = new THREE.Scene();
 postScene.add(glitchQuad);
 const postCamera = new THREE.Camera();
 //end background
-const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.002, 500);
+const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.002, 1000);
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setSize(window.innerWidth, window.innerHeight);
 document.body.appendChild(renderer.domElement);
@@ -89,7 +90,7 @@ window.addEventListener('wheel', function(e) {
   const direction = new THREE.Vector3();
   camera.getWorldDirection(direction);
   
-  const speed = e.deltaY * 0.02;
+  const speed = e.deltaY * .001;
   camera.position.addScaledVector(direction, -speed);
   controls.target.addScaledVector(direction, -speed);
 });
@@ -97,86 +98,59 @@ const light = new THREE.DirectionalLight(0xffffff, 10);
 light.position.set(5, 10, 7);
 scene.add(light);
 const textureLoader = new THREE.TextureLoader();
-const faceTexture = textureLoader.load('./textures/Face_Base_color.png')
-const teethTexture = textureLoader.load('./textures/Teeth_Base_color.png')
 const loader = new GLTFLoader();
-loader.load('./models/felix_the_cat.glb', function(gltf) {
-    gltf.scene.scale.set(0.005, 0.005, 0.005);
-    gltf.scene.position.set(-8, 0, 0);
-    scene.add(gltf.scene);
-})
 
-loader.load('./models/animated_dragon.glb', function(gltf) {
-    gltf.scene.scale.set(15, 15, 15);
-    gltf.scene.position.set(6, 8, -40);
-    scene.add(gltf.scene);
+const gui = new GUI();
+
+// Camera position helper
+const cameraFolder = gui.addFolder('Camera');
+cameraFolder.add(camera.position, 'x').listen();
+cameraFolder.add(camera.position, 'y').listen();
+cameraFolder.add(camera.position, 'z').listen();
+
+// Model configs
+const models = [
+  { name: 'felix_the_cat', file: './models/felix_the_cat.glb', scale: 0.005, pos: [-8, 0, 0] },
+  { name: 'animated_dragon', file: './models/animated_dragon.glb', scale: 15, pos: [6, 8, -40] },
+  { name: 'angel', file: './models/angel.glb', scale: 200, pos: [-10, 2, -80] },
+  { name: 'mycena', file: './models/mycena.glb', scale: 2, pos: [5, 1, -130] },
+  { name: 'demon_head', file: './models/demon_head.glb', scale: 2, pos: [-5, 4, -170] },
+  { name: 'dark_winged_demon', file: './models/dark_winged_demon.glb', scale: 50, pos: [10, 6, -220] },
+  { name: 'hand_monster', file: './models/hand_monster.glb', scale: 8, pos: [-8, -3, -270] },
+  { name: 'strego', file: './models/strego.glb', scale: 0.5, pos: [7, 2, -320] },
+  { name: 'thefuture', file: './models/thefuture.glb', scale: 1, pos: [-12, 5, -370] },
+  { name: 'toad', file: './models/toad.glb', scale: 0.05, pos: [6, 0, -420] },
+  { name: 'plague_doctor', file: './models/plague_doctor.glb', scale: 6, pos: [-10, 3, -470] },
+  { name: 'corgi', file: './models/corgi.glb', scale: 20, pos: [-6, 0, -570] },
+  { name: 'frame', file: './models/frame.glb', scale: 10, pos: [0, 0, -620] },
+  { name: 'Rot', file: './models/Rot.glb', scale: 10, pos: [0, -0.899999999999636, 4.10000000000036] }
+];
+
+models.forEach(function(config) {
+  loader.load(config.file, function(gltf) {
+    const model = gltf.scene;
+    model.scale.set(config.scale, config.scale, config.scale);
+    model.position.set(config.pos[0], config.pos[1], config.pos[2]);
+    scene.add(model);
+    
+    // Helper object for uniform scale
+    const settings = { scale: config.scale };
+
+    // Add GUI folder for this model
+    const folder = gui.addFolder(config.name);
+    folder.add(model.position, 'x', -10000, 10000).step(0.1);
+    folder.add(model.position, 'y', -10000, 10000).step(0.1);
+    folder.add(model.position, 'z', -10000, 10000).step(0.1);
+    folder.add(model.rotation, 'x', 0, Math.PI * 2).step(0.01).name('rot X');
+    folder.add(model.rotation, 'y', 0, Math.PI * 2).step(0.01).name('rot Y');
+    folder.add(model.rotation, 'z', 0, Math.PI * 2).step(0.01).name('rot Z');
+    folder.add(settings, 'scale', 0.001, 500).step(1).onChange(function(v) {
+      model.scale.set(v, v, v);
+    });
+    folder.close(); // Keep folders collapsed by default
+  });
 });
 
-loader.load('./models/angel.glb', function(gltf) {
-    gltf.scene.scale.set(200, 200, 200);
-    gltf.scene.position.set(-10, 2, -80);
-    scene.add(gltf.scene);
-});
-
-loader.load('./models/mycena.glb', function(gltf) {
-    gltf.scene.scale.set(2, 2, 2);
-    gltf.scene.position.set(5, 1, -130);
-    scene.add(gltf.scene);
-});
-
-loader.load('./models/demon_head.glb', function(gltf) {
-    gltf.scene.scale.set(2, 2, 2);
-    gltf.scene.position.set(-5, 4, -170);
-    scene.add(gltf.scene);
-});
-
-loader.load('./models/dark_winged_demon.glb', function(gltf) {
-    gltf.scene.scale.set(50, 50, 50);
-    gltf.scene.position.set(10, 6, -220);
-    scene.add(gltf.scene);
-});
-
-loader.load('./models/hand_monster.glb', function(gltf) {
-    gltf.scene.scale.set(8, 8, 8);
-    gltf.scene.position.set(-8, -3, -270);
-    scene.add(gltf.scene);
-});
-
-loader.load('./models/strego.glb', function(gltf) {
-    gltf.scene.scale.set(.5, .5, .5);
-    gltf.scene.position.set(7, 2, -320);
-    scene.add(gltf.scene);
-});
-
-loader.load('./models/thefuture.glb', function(gltf) {
-    gltf.scene.scale.set(1, 1, 1);
-    gltf.scene.position.set(-12, 5, -370);
-    scene.add(gltf.scene);
-});
-
-loader.load('./models/toad.glb', function(gltf) {
-    gltf.scene.scale.set(.05, .05, .05);
-    gltf.scene.position.set(6, 0, -420);
-    scene.add(gltf.scene);
-});
-
-loader.load('./models/plague_doctor.glb', function(gltf) {
-    gltf.scene.scale.set(6, 6, 6);
-    gltf.scene.position.set(-10, 3, -470);
-    scene.add(gltf.scene);
-});
-
-loader.load('./models/corgi.glb', function(gltf) {
-    gltf.scene.scale.set(20, 20, 20);
-    gltf.scene.position.set(-6, 0, -570);
-    scene.add(gltf.scene);
-});
-
-loader.load('./models/frame.glb', function(gltf) {
-    gltf.scene.scale.set(10, 10, 10);
-    gltf.scene.position.set(0, 0, -620);
-    scene.add(gltf.scene);
-});
 
 // mass content
 
@@ -332,49 +306,6 @@ orbData.forEach(function(data) {
   orbs.push(orb);
 });
 
-// Kinect particle figure
-const video = document.getElementById('kinect-video');
-const kinectTexture = new THREE.VideoTexture(video);
-kinectTexture.minFilter = THREE.NearestFilter;
-kinectTexture.generateMipmaps = false;
-
-const kinectWidth = 640, kinectHeight = 480;
-
-const kinectGeometry = new THREE.BufferGeometry();
-const vertices = new Float32Array(kinectWidth * kinectHeight * 3);
-
-for (let i = 0, j = 0; i < vertices.length; i += 3, j++) {
-  vertices[i] = j % kinectWidth;
-  vertices[i + 1] = Math.floor(j / kinectWidth);
-}
-
-kinectGeometry.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
-
-const kinectMaterial = new THREE.ShaderMaterial({
-  uniforms: {
-    'map': { value: kinectTexture },
-    'width': { value: kinectWidth },
-    'height': { value: kinectHeight },
-    'nearClipping': { value: 850 },
-    'farClipping': { value: 4000 },
-    'pointSize': { value: 2 },
-    'zOffset': { value: 1000 }
-  },
-  vertexShader: document.getElementById('kinect-vs').textContent,
-  fragmentShader: document.getElementById('kinect-fs').textContent,
-  blending: THREE.AdditiveBlending,
-  depthTest: false,
-  depthWrite: false,
-  transparent: true
-});
-
-const kinectMesh = new THREE.Points(kinectGeometry, kinectMaterial);
-kinectMesh.position.set(0, 0, -30);
-kinectMesh.scale.set(0.01, 0.01, 0.01);
-scene.add(kinectMesh);
-
-video.play();
-
 function animate() {
   requestAnimationFrame(animate);
   
@@ -387,13 +318,13 @@ function animate() {
   controls.update();
   
   // Render scene to texture
-  renderer.setRenderTarget(renderTarget);
+  //renderer.setRenderTarget(renderTarget);
   renderer.render(scene, camera);
   
   // Apply glitch effect
-  renderer.setRenderTarget(null);
-  glitchUniforms.tDiffuse.value = renderTarget.texture;
-  renderer.render(postScene, postCamera);
+  //renderer.setRenderTarget(null);
+  //glitchUniforms.tDiffuse.value = renderTarget.texture;
+  //renderer.render(postScene, postCamera);
 
   orbs.forEach(function(orb) {
   const pulse = Math.sin(glitchUniforms.time.value * orb.userData.pulseSpeed * 60) * 0.3 + 1;
