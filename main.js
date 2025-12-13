@@ -6,6 +6,8 @@ const scene = new THREE.Scene();
 // Glitchy background
 // Render target for post-processing
 const renderTarget = new THREE.WebGLRenderTarget(window.innerWidth, window.innerHeight);
+const mixers = [];
+const clock = new THREE.Clock();
 const glitchUniforms = {
   tDiffuse: { value: null },
   time: { value: 0 }
@@ -78,7 +80,7 @@ const postScene = new THREE.Scene();
 postScene.add(glitchQuad);
 const postCamera = new THREE.Camera();
 //end background
-const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.002, 1000);
+const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.002, 4000);
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setSize(window.innerWidth, window.innerHeight);
 document.body.appendChild(renderer.domElement);
@@ -113,7 +115,7 @@ const models = [
   { name: 'felix_the_cat', file: './models/felix_the_cat.glb', scale: 0.005, pos: [-8, 0, 0] },
   { name: 'animated_dragon', file: './models/animated_dragon.glb', scale: 15, pos: [6, 8, -40] },
   { name: 'angel', file: './models/angel.glb', scale: 200, pos: [-10, 2, -80] },
-  { name: 'mycena', file: './models/mycena.glb', scale: 2, pos: [5, 1, -130] },
+  { name: 'mycena', file: './models/mycena.glb', scale: 317.001, pos: [706.6, 1506.8, -564.199999999999], rot: [0, 5.36, 0] },
   { name: 'demon_head', file: './models/demon_head.glb', scale: 2, pos: [-5, 4, -170] },
   { name: 'dark_winged_demon', file: './models/dark_winged_demon.glb', scale: 50, pos: [10, 6, -220] },
   { name: 'hand_monster', file: './models/hand_monster.glb', scale: 8, pos: [-8, -3, -270] },
@@ -123,7 +125,7 @@ const models = [
   { name: 'plague_doctor', file: './models/plague_doctor.glb', scale: 6, pos: [-10, 3, -470] },
   { name: 'corgi', file: './models/corgi.glb', scale: 20, pos: [-6, 0, -570] },
   { name: 'frame', file: './models/frame.glb', scale: 10, pos: [0, 0, -620] },
-  { name: 'Rot', file: './models/Rot.glb', scale: 10, pos: [0, -0.899999999999636, 4.10000000000036] }
+  { name: 'space', file: './models/space.glb', scale: 100, pos: [0, 0, -100] }
 ];
 
 models.forEach(function(config) {
@@ -131,7 +133,22 @@ models.forEach(function(config) {
     const model = gltf.scene;
     model.scale.set(config.scale, config.scale, config.scale);
     model.position.set(config.pos[0], config.pos[1], config.pos[2]);
+
+    // Apply rotation if defined
+    if (config.rot) {
+      model.rotation.set(config.rot[0], config.rot[1], config.rot[2]);
+    }
+
     scene.add(model);
+
+    // Play animations if model has them
+    if (gltf.animations.length > 0) {
+      const mixer = new THREE.AnimationMixer(model);
+      gltf.animations.forEach(function(clip) {
+        mixer.clipAction(clip).play();
+      })
+      mixers.push(mixer);
+    }
     
     // Helper object for uniform scale
     const settings = { scale: config.scale };
@@ -151,6 +168,61 @@ models.forEach(function(config) {
   });
 });
 
+// Mouth with special animation handling
+let mouthMixer = null;
+let mouthAction = null;
+let mouthPhase = 'waiting';
+let mouthTime = 0;
+let mouthDirection = 1;
+
+loader.load('./models/mouth.glb', function(gltf) {
+  const mouth = gltf.scene;
+  mouth.scale.set(10, 10, 10);
+  mouth.position.set(0, -0.899999999999636, 4.10000000000036);
+  scene.add(mouth);
+  
+  if (gltf.animations.length > 0) {
+    console.log('Animation count:', gltf.animations.length);
+    console.log('Animation duration:', gltf.animations[0].duration);
+
+    mouthMixer = new THREE.AnimationMixer(mouth);
+
+    // Play ALL animations, not just the first one
+    gltf.animations.forEach(function(clip) {
+      const action = mouthMixer.clipAction(clip);
+      action.play();
+      action.paused = true;
+    });
+
+    mouthAction = mouthMixer.clipAction(gltf.animations[0]);
+    mouthAction.play();
+    mouthAction.paused = true;
+  }
+
+  // Add GUI for mouth
+  const settings = { scale: 10 };
+  const folder = gui.addFolder('mouth');
+  folder.add(mouth.position, 'x', -10000, 10000).step(0.1).name('pos X');
+  folder.add(mouth.position, 'y', -10000, 10000).step(0.1).name('pos Y');
+  folder.add(mouth.position, 'z', -10000, 10000).step(0.1).name('pos Z');
+  folder.add(mouth.rotation, 'x', 0, Math.PI * 2).step(0.01).name('rot X');
+  folder.add(mouth.rotation, 'y', 0, Math.PI * 2).step(0.01).name('rot Y');
+  folder.add(mouth.rotation, 'z', 0, Math.PI * 2).step(0.01).name('rot Z');
+  folder.add(settings, 'scale', 0.001, 500).step(0.1).onChange(function(v) {
+    mouth.scale.set(v, v, v);
+  });
+});
+
+function openMouth() {
+  if (mouthMixer) {
+    mouthMixer._actions.forEach(function(action) {
+      action.paused = false;
+    });
+    mouthPhase = 'opening';
+  }
+}
+
+window.openMouth = openMouth; // Added line to open mouth in console log
 
 // mass content
 
@@ -309,12 +381,46 @@ orbData.forEach(function(data) {
 function animate() {
   requestAnimationFrame(animate);
   
+const delta = clock.getDelta();
+  
+  // Mouth animation logic
+  if (mouthMixer && mouthPhase !== 'waiting') {
+    if (mouthPhase === 'opening') {
+      mouthMixer.update(delta);
+      if (mouthAction.time >= 8.58) {
+        mouthPhase = 'looping';
+        mouthTime = 8.58;
+        mouthDirection = -1;
+      }
+    } else if (mouthPhase === 'looping') {
+      mouthTime += delta * mouthDirection;
+      
+      if (mouthTime >= 8.58) {
+        mouthTime = 8.58;
+        mouthDirection = -1;
+      } else if (mouthTime <= 2.78) {
+        mouthTime = 2.78;
+        mouthDirection = 1;
+      }
+      
+    mouthMixer._actions.forEach(function(action) {
+      action.time = mouthTime;
+    });
+    mouthMixer.update(0);
+    }
+  }
+  
+  // Other model animations
+  mixers.forEach(function(mixer) {
+    mixer.update(delta);
+  });
+  
   glitchUniforms.time.value += 0.016;
   
   eyes.forEach(function(eye) {
     eye.rotation.y += eye.userData.speed;
   });
-  
+
   controls.update();
   
   // Render scene to texture
